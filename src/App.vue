@@ -29,10 +29,23 @@
         <v-card title="Mis Tareas" flat border>
           <v-list>
             <v-list-item v-for="tarea in tareas" :key="tarea.id">
+              
               <template v-slot:prepend>
                 <v-checkbox-btn :model-value="tarea.completada" readonly></v-checkbox-btn>
               </template>
+              
               <v-list-item-title>{{ tarea.titulo }}</v-list-item-title>
+
+              <template v-slot:append>
+                <v-btn
+                  icon="mdi-delete"
+                  variant="text"
+                  color="error"
+                  density="comfortable"
+                  @click="eliminarTarea(tarea.id)"
+                ></v-btn>
+              </template>
+
             </v-list-item>
           </v-list>
         </v-card>
@@ -46,7 +59,7 @@
 import { ref, onMounted } from 'vue'
 
 const tareas = ref([])
-const nuevaTarea = ref('') // Variable reactiva para el input de texto
+const nuevaTarea = ref('')
 
 // Función para consultar las tareas (GET)
 const obtenerTareas = async () => {
@@ -62,7 +75,6 @@ const obtenerTareas = async () => {
 
 // Función para enviar la nueva tarea (POST)
 const crearTarea = async () => {
-  // Validamos que el campo no esté vacío o solo contenga espacios
   if (!nuevaTarea.value.trim()) return
 
   try {
@@ -79,10 +91,7 @@ const crearTarea = async () => {
 
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`)
     
-    // Si la petición fue exitosa, limpiamos el campo de texto
     nuevaTarea.value = ''
-    
-    // Volvemos a pedir la lista completa para ver la nueva tarea reflejada
     await obtenerTareas()
 
   } catch (error) {
@@ -90,7 +99,23 @@ const crearTarea = async () => {
   }
 }
 
-// Al montar el componente, cargamos la lista inicial
+// Función para eliminar una tarea (DELETE)
+const eliminarTarea = async (id) => {
+  try {
+    const response = await fetch(`http://localhost:3000/api/tareas/${id}`, {
+      method: 'DELETE'
+    })
+
+    if (!response.ok) throw new Error(`Error HTTP: ${response.status}`)
+    
+    // Si se eliminó correctamente en el servidor, refrescamos la vista
+    await obtenerTareas()
+
+  } catch (error) {
+    console.error('Error al eliminar la tarea:', error)
+  }
+}
+
 onMounted(() => {
   obtenerTareas()
 })
