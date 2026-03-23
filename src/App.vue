@@ -14,10 +14,16 @@
                     variant="outlined"
                     density="compact"
                     hide-details
+                    :disabled="guardandoTarea"
                   ></v-text-field>
                 </v-col>
                 <v-col cols="4" sm="3">
-                  <v-btn type="submit" color="primary" block>
+                  <v-btn 
+                    type="submit" 
+                    color="primary" 
+                    block 
+                    :loading="guardandoTarea"
+                  >
                     Agregar
                   </v-btn>
                 </v-col>
@@ -37,9 +43,17 @@
           class="mb-4"
           @input="buscarTareas"
           @click:clear="obtenerTareas"
+          :loading="buscandoTarea"
         ></v-text-field>
 
         <v-card title="Mis Tareas" flat border>
+          
+          <v-progress-linear 
+            v-if="cargandoLista" 
+            indeterminate 
+            color="primary"
+          ></v-progress-linear>
+
           <v-list>
             <v-list-item v-for="tarea in tareas" :key="tarea.id">
               
@@ -61,12 +75,13 @@
                   color="error"
                   density="comfortable"
                   @click="eliminarTarea(tarea.id)"
+                  :disabled="cargandoLista"
                 ></v-btn>
               </template>
 
             </v-list-item>
 
-            <v-list-item v-if="tareas.length === 0">
+            <v-list-item v-if="tareas.length === 0 && !cargandoLista">
               <v-list-item-title class="text-center text-medium-emphasis">
                 No se encontraron tareas.
               </v-list-item-title>
@@ -84,10 +99,14 @@ import { ref, onMounted } from 'vue'
 
 const tareas = ref([])
 const nuevaTarea = ref('')
-const terminoBusqueda = ref('') // NUEVO: Estado para el buscador
+const terminoBusqueda = ref('')
 
-// GET: Consultar todas las tareas
+const cargandoLista = ref(false)
+const guardandoTarea = ref(false)
+const buscandoTarea = ref(false)
+
 const obtenerTareas = async () => {
+  cargandoLista.value = true
   try {
     const response = await fetch('http://localhost:3000/api/tareas')
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`)
@@ -95,19 +114,20 @@ const obtenerTareas = async () => {
     tareas.value = resultado.data
   } catch (error) {
     console.error('Error al cargar tareas:', error)
+  } finally {
+    cargandoLista.value = false
   }
 }
 
-// NUEVO - GET: Buscar tareas por título
 const buscarTareas = async () => {
   const termino = terminoBusqueda.value.trim()
   
-  // Si el campo está vacío, volvemos a cargar todas las tareas
   if (!termino) {
     await obtenerTareas()
     return
   }
 
+  buscandoTarea.value = true
   try {
     const response = await fetch(`http://localhost:3000/api/tareas/buscar?q=${termino}`)
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`)
@@ -115,13 +135,15 @@ const buscarTareas = async () => {
     tareas.value = resultado.data
   } catch (error) {
     console.error('Error al buscar tareas:', error)
+  } finally {
+    buscandoTarea.value = false
   }
 }
 
-// POST: Enviar una nueva tarea
 const crearTarea = async () => {
   if (!nuevaTarea.value.trim()) return
 
+  guardandoTarea.value = true
   try {
     const response = await fetch('http://localhost:3000/api/tareas', {
       method: 'POST',
@@ -135,21 +157,19 @@ const crearTarea = async () => {
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`)
     
     nuevaTarea.value = ''
-    
-    // Si había una búsqueda activa, la limpiamos para mostrar la nueva tarea en la lista completa
-    if (terminoBusqueda.value) {
-      terminoBusqueda.value = ''
-    }
+    if (terminoBusqueda.value) terminoBusqueda.value = ''
     
     await obtenerTareas()
 
   } catch (error) {
     console.error('Error al crear la tarea:', error)
+  } finally {
+    guardandoTarea.value = false
   }
 }
 
-// DELETE: Eliminar una tarea
 const eliminarTarea = async (id) => {
+  cargandoLista.value = true
   try {
     const response = await fetch(`http://localhost:3000/api/tareas/${id}`, {
       method: 'DELETE'
@@ -157,7 +177,6 @@ const eliminarTarea = async (id) => {
 
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`)
     
-    // Si estamos filtrando, volvemos a aplicar el filtro, sino cargamos todas
     if (terminoBusqueda.value.trim()) {
       await buscarTareas()
     } else {
@@ -166,10 +185,11 @@ const eliminarTarea = async (id) => {
 
   } catch (error) {
     console.error('Error al eliminar la tarea:', error)
+  } finally {
+    cargandoLista.value = false
   }
 }
 
-// PATCH: Actualizar el estado completado/pendiente
 const actualizarEstadoTarea = async (tarea) => {
   try {
     const response = await fetch(`http://localhost:3000/api/tareas/${tarea.id}`, {
@@ -184,7 +204,7 @@ const actualizarEstadoTarea = async (tarea) => {
 
   } catch (error) {
     console.error('Error al actualizar la tarea:', error)
-    tarea.completada = !tarea.completada
+    tarea.completada = !tarea.completada // Revertimos si falla
   }
 }
 
